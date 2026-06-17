@@ -16,7 +16,7 @@ Integrates with the **Metaplex Token Metadata Program** (`metaqbxxUerdq28cj1RbAW
 
 ### 3. $O(1)$ Lazy Reward Accrual Engine
 Rather than running expensive transaction loops or cron jobs, rewards accrue lazily. Yield updates are computed on-demand when users stake or unstake based on elapsed time:
-$$\text{reward} = \frac{\text{amount} \times \text{elapsed\_days}}{2}$$
+$$\text{reward} = \frac{\text{amount} \times \text{elapsed days}}{2}$$
 
 ### 4. Direct Lamport Payouts (Gas Optimized)
 To minimize transaction fees, the unstaking instruction transfers SOL out of the Vault PDA to the user by modifying lamports balance directly (`try_borrow_mut_lamports`), bypassing the compute overhead of standard System Program CPI transfers.
