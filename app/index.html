@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DSOL — Liquid Staking Protocol</title>
+  <meta name="description" content="DSOL Liquid Staking Protocol on Solana — Stake SOL, receive DSOL and earn lazy rewards">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --font-sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --color-brand-cyan: #00f2fe;
+      --color-brand-purple: #4facfe;
+      --color-brand-green: #00ff87;
+      --color-dark-bg: #0b0c10;
+      --color-dark-surface: #1f2833;
+      --color-dark-border: #3c4856;
+    }
+    .gradient-text {
+      background: linear-gradient(135deg, var(--color-brand-cyan), var(--color-brand-purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .premium-card {
+      background: rgba(31, 40, 51, 0.4);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(60, 72, 86, 0.5);
+    }
+    .premium-btn-primary {
+      background: linear-gradient(135deg, var(--color-brand-cyan), var(--color-brand-purple));
+      color: #0b0c10;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .premium-btn-primary:hover {
+      box-shadow: 0 0 20px rgba(0, 242, 254, 0.6);
+      transform: translateY(-2px);
+    }
+    .premium-btn-primary:active {
+      transform: translateY(0);
+    }
+    .premium-btn-danger {
+      background: linear-gradient(135deg, #ff0844, #ffb199);
+      color: #ffffff;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .premium-btn-danger:hover {
+      box-shadow: 0 0 20px rgba(255, 8, 68, 0.6);
+      transform: translateY(-2px);
+    }
+    .pulse-dot {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.9); }
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans bg-dark-bg text-[#e2e8f0] antialiased selection:bg-brand-cyan selection:text-dark-bg">
+
+  <!-- ===== GLOW DECORATIONS ===== -->
+  <div class="absolute top-0 left-1/4 w-[500px] h-[500px] bg-brand-cyan/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
+  <div class="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-brand-purple/10 rounded-full blur-[140px] pointer-events-none -z-10"></div>
+
+  <!-- ===== HEADER ===== -->
+  <header class="sticky top-0 z-50 premium-card border-b border-dark-border/40 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-cyan to-brand-purple flex items-center justify-center text-dark-bg font-extrabold text-xl shadow-lg shadow-brand-cyan/20">
+        D
+      </div>
+      <div>
+        <h1 class="font-extrabold text-2xl tracking-tight leading-none gradient-text">DSOL</h1>
+        <span class="font-mono text-[0.65rem] uppercase tracking-widest text-[#94a3b8]">Liquid Staking Protocol</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-4">
+      <select id="clusterSelect" onchange="switchCluster()"
+        class="font-mono text-xs uppercase tracking-wider px-3 py-2 bg-dark-bg border border-dark-border rounded-lg text-[#94a3b8] focus:outline-none focus:border-brand-cyan cursor-pointer">
+        <option value="devnet">Devnet</option>
+        <option value="mainnet-beta">Mainnet</option>
+      </select>
+      <button id="connectBtn" onclick="connectWallet()"
+        class="font-mono text-sm font-bold uppercase tracking-wider px-6 py-2.5 rounded-xl border border-[#475569] hover:border-brand-cyan hover:text-brand-cyan transition-all duration-300 shadow-md">
+        Connect Wallet
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== STATUS BAR ===== -->
+  <div class="flex justify-between items-center px-6 py-2 bg-dark-bg/80 border-b border-dark-border/40 font-mono text-[0.65rem] uppercase tracking-widest text-[#64748b]">
+    <div class="flex items-center gap-2">
+      <span id="statusDot" class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.7)]"></span>
+      <span id="statusText">Wallet Disconnected</span>
+    </div>
+    <div class="flex items-center gap-4">
+      <span id="clusterLabel">Cluster: Devnet</span>
+      <span>Program ID: 39Xab...mRfGD</span>
+    </div>
+  </div>
+
+  <main class="max-w-[1200px] mx-auto px-6 py-10">
+
+    <!-- ===== LIVE DISPLAY STATS ===== -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+      <div class="premium-card p-6 rounded-2xl flex flex-col justify-between">
+        <span class="font-mono text-[0.7rem] uppercase tracking-wider text-[#94a3b8] mb-2">Your Wallet SOL</span>
+        <div class="text-3xl font-extrabold tracking-tight" id="solBalanceStat">
+          0.0000 <span class="text-sm font-medium text-[#64748b]">SOL</span>
+        </div>
+      </div>
+      <div class="premium-card p-6 rounded-2xl flex flex-col justify-between border-l-4 border-l-brand-cyan">
+        <span class="font-mono text-[0.7rem] uppercase tracking-wider text-[#94a3b8] mb-2">Staked Principal</span>
+        <div class="text-3xl font-extrabold tracking-tight" id="stakedAmountStat">
+          0.0000 <span class="text-sm font-medium text-[#64748b]">SOL</span>
+        </div>
+      </div>
+      <div class="premium-card p-6 rounded-2xl flex flex-col justify-between border-l-4 border-l-brand-green">
+        <span class="font-mono text-[0.7rem] uppercase tracking-wider text-[#94a3b8] mb-2">Accruing Rewards (Live)</span>
+        <div class="text-3xl font-extrabold tracking-tight text-brand-green" id="liveRewardsDisplay">
+          <span id="liveRewardStat">0.00000000</span> <span class="text-sm font-medium text-[#64748b]">SOL</span>
+        </div>
+      </div>
+      <div class="premium-card p-6 rounded-2xl flex flex-col justify-between">
+        <span class="font-mono text-[0.7rem] uppercase tracking-wider text-[#94a3b8] mb-2">DSOL Liquid Balance</span>
+        <div class="text-3xl font-extrabold tracking-tight text-brand-purple" id="dsolBalanceStat">
+          0.0000 <span class="text-sm font-medium text-[#64748b]">DSOL</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ACTIONS PANEL GRID ===== -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+
+      <!-- STAKE / UNSTAKE PANEL -->
+      <div class="lg:col-span-2 premium-card rounded-2xl overflow-hidden">
+        <!-- TABS -->
+        <div class="flex border-b border-dark-border/40">
+          <button id="tabStake" onclick="switchTab('stake')"
+            class="flex-1 py-4 font-bold uppercase tracking-wider border-b-2 border-brand-cyan text-brand-cyan bg-brand-cyan/5 transition-all outline-none">
+            Stake SOL
+          </button>
+          <button id="tabUnstake" onclick="switchTab('unstake')"
+            class="flex-1 py-4 font-bold uppercase tracking-wider border-b-2 border-transparent text-[#94a3b8] hover:text-[#e2e8f0] transition-all outline-none">
+            Unstake DSOL
+          </button>
+        </div>
+
+        <div class="p-8">
+          <!-- STAKE CONTENT -->
+          <div id="stakeContent">
+            <!-- Protocol Initialization Warning -->
+            <div id="protocolWarning" class="hidden bg-amber-950/40 border border-amber-500/50 rounded-xl p-4 text-amber-200 text-xs font-mono mb-6 flex flex-col gap-2">
+              <div class="flex items-center gap-2 font-bold text-amber-400">
+                <span>⚠️ Protocol Setup Required</span>
+              </div>
+              <p class="text-[0.7rem] text-[#cbd5e1] leading-relaxed">
+                The global Vault and DSOL Mint accounts have not been initialized on Devnet yet. 
+                Please use the administrator controls in the right panel to initialize them before staking.
+              </p>
+            </div>
+
+            <div class="mb-6">
+              <div class="flex justify-between items-center mb-3">
+                <label class="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">Deposit SOL Amount <span class="text-brand-cyan">(Balance: <span id="solBalanceLabel">0.0000</span> SOL)</span></label>
+                <button onclick="setStakeMax()" class="text-xs font-bold text-brand-cyan hover:underline">STAKE MAX</button>
+              </div>
+              <div class="flex items-center bg-dark-bg border border-dark-border rounded-xl px-4 py-3 focus-within:border-brand-cyan transition-all">
+                <input type="number" id="stakeInput" placeholder="0.0" step="0.01" min="0" oninput="updateStakePreview()"
+                  class="flex-1 bg-transparent border-none text-2xl font-bold outline-none text-[#f8fafc] placeholder:text-[#475569]">
+                <span class="font-mono font-bold text-sm text-[#64748b] pl-3 border-l border-dark-border">SOL</span>
+              </div>
+            </div>
+
+            <!-- Stake Preview Card -->
+            <div class="bg-dark-bg/60 rounded-xl p-4 border border-dark-border/40 mb-6 flex justify-between items-center text-sm font-mono">
+              <span class="text-[#94a3b8]">You will receive:</span>
+              <span class="text-brand-purple font-bold text-lg"><span id="previewDsol">0.0000</span> DSOL</span>
+            </div>
+
+            <button id="stakeBtn" onclick="doStake()" disabled
+              class="w-full py-4 rounded-xl font-bold uppercase tracking-widest text-center shadow-lg disabled:opacity-40 disabled:cursor-not-allowed premium-btn-primary">
+              STAKE SOL
+            </button>
+          </div>
+
+          <!-- UNSTAKE CONTENT -->
+          <div id="unstakeContent" class="hidden">
+            <div class="mb-6 text-center">
+              <div class="font-mono text-xs uppercase tracking-wider text-[#94a3b8] mb-2">Liquid Balance Available to Unstake</div>
+              <div class="text-4xl font-extrabold text-[#f8fafc] mb-1"><span id="unstakeBalanceText">0.0000</span> DSOL</div>
+              <div class="font-mono text-[0.7rem] text-[#64748b]">Unstaking burns DSOL and releases SOL + Live Rewards</div>
+            </div>
+
+            <!-- Unstake Payout Preview -->
+            <div class="bg-dark-bg/60 rounded-xl p-4 border border-dark-border/40 mb-6 flex flex-col gap-2 text-sm font-mono">
+              <div class="flex justify-between">
+                <span class="text-[#94a3b8]">Staked Principal:</span>
+                <span class="text-[#e2e8f0]"><span id="unstakePrincipalDisplay">0.0000</span> SOL</span>
+              </div>
+              <div class="flex justify-between border-b border-dark-border/40 pb-2">
+                <span class="text-[#94a3b8]">Live Accrued Rewards:</span>
+                <span class="text-brand-green font-semibold"><span id="unstakeRewardDisplay">0.0000</span> SOL</span>
+              </div>
+              <div class="flex justify-between pt-1 font-bold">
+                <span class="text-brand-cyan">Total Return Payout:</span>
+                <span class="text-brand-cyan"><span id="unstakeTotalDisplay">0.0000</span> SOL</span>
+              </div>
+            </div>
+
+            <button id="unstakeBtn" onclick="doUnstake()" disabled
+              class="w-full py-4 rounded-xl font-bold uppercase tracking-widest text-center shadow-lg disabled:opacity-40 disabled:cursor-not-allowed premium-btn-danger">
+              UNSTAKE & BURN DSOL
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADDRESSES & PROTOCOL PANEL -->
+      <div class="premium-card rounded-2xl p-8 flex flex-col justify-between">
+        <div>
+          <h3 class="font-bold text-lg mb-6 tracking-tight text-brand-cyan">Protocol Information</h3>
+          <div class="flex flex-col gap-4 font-mono text-[0.75rem]">
+            <div class="flex flex-col">
+              <span class="text-[#64748b] uppercase tracking-wider mb-1">Central Vault (SOL Store)</span>
+              <span class="text-[#cbd5e1] font-semibold truncate" id="infoVaultAddress">—</span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[#64748b] uppercase tracking-wider mb-1">DSOL Mint (SPL Mint Address)</span>
+              <span class="text-[#cbd5e1] font-semibold truncate" id="infoMintAddress">—</span>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[#64748b] uppercase tracking-wider mb-1">Your Staking State PDA</span>
+              <span class="text-[#cbd5e1] font-semibold truncate" id="infoPdaAddress">—</span>
+            </div>
+          </div>
+          <div id="initMintContainer" class="hidden mt-6">
+            <button id="initMintBtn" onclick="doInitMint()"
+              class="w-full py-2.5 rounded-xl font-bold uppercase tracking-wider text-xs text-center premium-btn-primary">
+              Initialize DSOL Mint (Admin)
+            </button>
+          </div>
+          <div id="initVaultContainer" class="hidden mt-3">
+            <button id="initVaultBtn" onclick="doInitVault()"
+              class="w-full py-2.5 rounded-xl font-bold uppercase tracking-wider text-xs text-center premium-btn-primary">
+              Initialize Vault (Admin)
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-8 pt-6 border-t border-dark-border/40">
+          <div class="flex items-center justify-between text-xs text-[#64748b] mb-4">
+            <span>STAKE POOL RESERVE</span>
+            <span class="font-mono text-brand-purple" id="vaultReserveDisplay">0.00 SOL</span>
+          </div>
+          <div class="w-full bg-dark-bg h-2 rounded-full overflow-hidden border border-dark-border/40">
+            <div class="bg-gradient-to-r from-brand-cyan to-brand-purple h-full w-[100%]" id="reserveProgress"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ===== TRANSACTION LOG ===== -->
+    <div class="premium-card rounded-2xl overflow-hidden">
+      <div class="px-6 py-4 border-b border-dark-border/40 flex justify-between items-center bg-dark-bg/40">
+        <span class="font-mono text-xs uppercase tracking-widest text-[#94a3b8]">Protocol Activity Log</span>
+        <span class="w-2 h-2 rounded-full bg-brand-green pulse-dot shadow-[0_0_8px_rgba(0,255,135,0.8)]"></span>
+      </div>
+      <div id="txLog" class="max-h-[200px] overflow-y-auto divide-y divide-dark-border/20 font-mono text-xs">
+        <div class="flex items-center gap-4 px-6 py-3">
+          <span class="text-[#64748b]">--:--</span>
+          <span class="font-bold text-brand-purple uppercase min-w-[70px]">System</span>
+          <span class="text-[#cbd5e1]">Connect your Phantom or Solflare wallet to start liquid staking</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="mt-20 border-t border-dark-border/40 py-8 text-center text-xs font-mono text-[#64748b]">
+    <div class="max-w-[1200px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
+      <span>DSOL Liquid Staking Protocol — <span id="footerCluster">Devnet</span></span>
+      <span>Powered by Anchor v1.0 & Solana Web3.js</span>
+    </div>
+  </footer>
+
+  <!-- TOAST -->
+  <div id="toast" class="fixed bottom-8 right-8 font-mono text-xs px-6 py-4 rounded-xl border border-brand-cyan bg-dark-surface/90 text-[#e2e8f0] shadow-2xl translate-y-[150%] transition-transform duration-300 max-w-[400px] z-50"></div>
+
+  <!-- Solana Web3.js -->
+  <script src="https://unpkg.com/@solana/web3.js@1.98.4/lib/index.iife.min.js"></script>
+
+  <script>
+    // ===== CONFIG & STATE =====
+    const PROGRAM_ID = '39Xab97dZ8inooWbdeLq9oYd1JpX3FjmGBZmEsomRfGD';
+    const LAMPORTS_PER_SOL = 1_000_000_000;
+    const SYSTEM_PROGRAM = '11111111111111111111111111111111';
+    const TOKEN_PROGRAM_ID = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+    const ASSOCIATED_TOKEN_PROGRAM_ID = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL';
+    const RENT_SYSVAR = 'SysvarRent111111111111111111111111111111111';
+    const METAPLEX_METADATA_PROGRAM_ID = 'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s';
+
+    const DISC = {
+      initialize: [175,175,109,31,13,152,155,237],
+      stake:      [206,176,202,18,200,209,179,108],
+      unstake:    [90,95,107,42,205,124,50,225],
+      initMint:   [126,176,233,16,66,117,209,125],
+      initVault:  [77, 79, 85, 150, 33, 217, 52, 106],
+    };
+
+    const clusterUrls = {
+      'devnet':       'https://api.devnet.solana.com',
+      'mainnet-beta': 'https://api.mainnet-beta.solana.com',
+    };
+
+    let conn = null, wallet = null;
+    let pdaAddr = null, pdaBump = null;
+    let vaultAddr = null, vaultBump = null;
+    let mintAddr = null, mintBump = null;
+    let userTokenAddr = null;
+    let acctData = null, solBalance = 0, dsolBalance = 0;
+    let rewardTicker = null;
+
+    // ===== INIT CONNECTION =====
+    function init() {
+      const c = document.getElementById('clusterSelect').value;
+      conn = new solanaWeb3.Connection(clusterUrls[c], 'confirmed');
+      addLog('sys', `Connected to RPC URL for ${c}`);
+      deriveKeysPlaceholder();
+    }
+
+    function switchCluster() {
+      const c = document.getElementById('clusterSelect').value;
+      conn = new solanaWeb3.Connection(clusterUrls[c], 'confirmed');
+      document.getElementById('clusterLabel').textContent = `Cluster: ${c}`;
+      document.getElementById('footerCluster').textContent = c.charAt(0).toUpperCase() + c.slice(1);
+      addLog('sys', `Switched network to ${c}`);
+      if (wallet) {
+        derivePDA();
+        refreshAll();
+      } else {
+        deriveKeysPlaceholder();
+      }
+    }
+
+    function deriveKeysPlaceholder() {
+      const pid = new solanaWeb3.PublicKey(PROGRAM_ID);
+      [vaultAddr] = solanaWeb3.PublicKey.findProgramAddressSync([new TextEncoder().encode('vault')], pid);
+      [mintAddr] = solanaWeb3.PublicKey.findProgramAddressSync([new TextEncoder().encode('mint')], pid);
+      document.getElementById('infoVaultAddress').textContent = vaultAddr.toBase58();
+      document.getElementById('infoMintAddress').textContent = mintAddr.toBase58();
+    }
+
+    function explorerUrl(sig) {
+      const c = document.getElementById('clusterSelect').value;
+      return `https://explorer.solana.com/tx/${sig}${c === 'mainnet-beta' ? '' : '?cluster=' + c}`;
+    }
+
+    // ===== WALLET MANAGEMENT =====
+    async function connectWallet() {
+      const btn = document.getElementById('connectBtn');
+      if (wallet) {
+        wallet = null; pdaAddr = null; acctData = null; userTokenAddr = null;
+        btn.textContent = 'CONNECT WALLET';
+        document.getElementById('statusDot').className = 'w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.7)]';
+        document.getElementById('statusText').textContent = 'Wallet Disconnected';
+        resetUI();
+        if (rewardTicker) clearInterval(rewardTicker);
+        addLog('sys', 'Wallet disconnected successfully');
+        return;
+      }
+      const prov = window?.phantom?.solana || window?.solana || window?.solflare;
+      if (!prov) {
+        if (window.location.protocol === 'file:') {
+          showToast('Local file detected. Run "npx serve app/" to load wallet extension correctly.', true);
+          addLog('err', 'Browser restricts wallets on file:// paths. Use HTTP server.');
+        } else {
+          showToast('Solana Wallet extension not detected', true);
+          addLog('err', 'Wallet extension not installed');
+        }
+        return;
+      }
+      try {
+        await prov.connect();
+        wallet = prov;
+        const pk = wallet.publicKey.toBase58();
+        btn.textContent = pk.slice(0,4) + '...' + pk.slice(-4);
+        document.getElementById('statusDot').className = 'w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.7)]';
+        document.getElementById('statusText').textContent = `Connected: ${pk.slice(0,8)}...`;
+        addLog('ok', `Wallet connected: ${pk}`);
+        derivePDA();
+        await refreshAll();
+        startRewardsTicker();
+      } catch(e) {
+        showToast('Connection declined', true);
+        addLog('err', e.message);
+      }
+    }
+
+    function derivePDA() {
+      const pid = new solanaWeb3.PublicKey(PROGRAM_ID);
+      [pdaAddr, pdaBump] = solanaWeb3.PublicKey.findProgramAddressSync(
+        [new TextEncoder().encode('client1'), wallet.publicKey.toBytes()], pid
+      );
+      [vaultAddr, vaultBump] = solanaWeb3.PublicKey.findProgramAddressSync([new TextEncoder().encode('vault')], pid);
+      [mintAddr, mintBump] = solanaWeb3.PublicKey.findProgramAddressSync([new TextEncoder().encode('mint')], pid);
+      [userTokenAddr] = solanaWeb3.PublicKey.findProgramAddressSync(
+        [wallet.publicKey.toBuffer(), new solanaWeb3.PublicKey(TOKEN_PROGRAM_ID).toBuffer(), mintAddr.toBuffer()],
+        new solanaWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID)
+      );
+
+      document.getElementById('infoVaultAddress').textContent = vaultAddr.toBase58();
+      document.getElementById('infoMintAddress').textContent = mintAddr.toBase58();
+      document.getElementById('infoPdaAddress').textContent = pdaAddr.toBase58();
+      addLog('sys', `Derived ATA: ${userTokenAddr.toBase58()}`);
+    }
+
+    // ===== REFRESH DATA =====
+    async function refreshAll() {
+      if (!wallet || !conn) return;
+      try {
+        // SOL Balance
+        const bal = await conn.getBalance(wallet.publicKey);
+        solBalance = bal / LAMPORTS_PER_SOL;
+        document.getElementById('solBalanceStat').innerHTML = `${solBalance.toFixed(4)} <span class="text-sm font-medium text-[#64748b]">SOL</span>`;
+        document.getElementById('solBalanceLabel').textContent = solBalance.toFixed(4);
+
+        // Vault SOL Reserve Balance
+        const vaultBal = await conn.getBalance(vaultAddr);
+        const vaultSol = vaultBal / LAMPORTS_PER_SOL;
+        document.getElementById('vaultReserveDisplay').textContent = `${vaultSol.toFixed(2)} SOL`;
+
+        // DSOL ATA Balance
+        try {
+          const tokenBal = await conn.getTokenAccountBalance(userTokenAddr);
+          dsolBalance = tokenBal.value.uiAmount || 0;
+        } catch (tokenErr) {
+          dsolBalance = 0;
+        }
+        document.getElementById('dsolBalanceStat').innerHTML = `${dsolBalance.toFixed(4)} <span class="text-sm font-medium text-[#64748b]">DSOL</span>`;
+        document.getElementById('unstakeBalanceText').textContent = dsolBalance.toFixed(4);
+
+        // Check if Mint PDA is initialized
+        const mintInfo = await conn.getAccountInfo(mintAddr);
+        const initMintContainer = document.getElementById('initMintContainer');
+        if (initMintContainer) {
+          if (!mintInfo) {
+            initMintContainer.classList.remove('hidden');
+          } else {
+            initMintContainer.classList.add('hidden');
+          }
+        }
+
+        // Check if Vault PDA is initialized
+        const vaultInfo = await conn.getAccountInfo(vaultAddr);
+        const initVaultContainer = document.getElementById('initVaultContainer');
+        if (initVaultContainer) {
+          if (!vaultInfo) {
+            initVaultContainer.classList.remove('hidden');
+          } else {
+            initVaultContainer.classList.add('hidden');
+          }
+        }
+
+        // Check if both Vault and Mint are ready
+        const protocolWarning = document.getElementById('protocolWarning');
+        const isProtocolReady = mintInfo !== null && vaultInfo !== null;
+        if (protocolWarning) {
+          if (!isProtocolReady) {
+            protocolWarning.classList.remove('hidden');
+            document.getElementById('stakeInput').disabled = true;
+          } else {
+            protocolWarning.classList.add('hidden');
+            document.getElementById('stakeInput').disabled = false;
+          }
+        }
+
+        // Staking State PDA Account
+        const info = await conn.getAccountInfo(pdaAddr);
+        if (info?.data) {
+          acctData = parseAcct(info.data);
+          const stakedSol = acctData.amount / LAMPORTS_PER_SOL;
+          document.getElementById('stakedAmountStat').innerHTML = `${stakedSol.toFixed(4)} <span class="text-sm font-medium text-[#64748b]">SOL</span>`;
+          document.getElementById('unstakePrincipalDisplay').textContent = stakedSol.toFixed(4);
+          
+          updateUnstakePayout();
+        } else {
+          acctData = null;
+          document.getElementById('stakedAmountStat').innerHTML = `0.0000 <span class="text-sm font-medium text-[#64748b]">SOL</span>`;
+          document.getElementById('unstakePrincipalDisplay').textContent = '0.0000';
+          document.getElementById('unstakeRewardDisplay').textContent = '0.0000';
+          document.getElementById('unstakeTotalDisplay').textContent = '0.0000';
+          document.getElementById('unstakeBtn').disabled = true;
+        }
+        document.getElementById('stakeBtn').disabled = false;
+      } catch(e) {
+        addLog('err', `Error fetching account data: ${e.message}`);
+      }
+    }
+
+    function parseAcct(data) {
+      const b = data instanceof Uint8Array ? data : new Uint8Array(data);
+      const authority = new solanaWeb3.PublicKey(b.slice(8,40)).toBase58();
+      
+      let amount = 0;
+      for (let i=0; i<8; i++) amount += b[40+i] * (2**(8*i));
+      
+      let accumulatedReward = 0;
+      for (let i=0; i<8; i++) accumulatedReward += b[48+i] * (2**(8*i));
+
+      let lastUpdated = 0;
+      for (let i=0; i<8; i++) lastUpdated += b[56+i] * (2**(8*i));
+
+      return { authority, amount, accumulatedReward, lastUpdated, bump: b[64] };
+    }
+
+    // ===== LAZY REWARDS TICKER (REAL-TIME UX) =====
+    function startRewardsTicker() {
+      if (rewardTicker) clearInterval(rewardTicker);
+      rewardTicker = setInterval(() => {
+        if (!acctData || acctData.amount === 0) {
+          document.getElementById('liveRewardStat').textContent = '0.00000000';
+          return;
+        }
+        const now = Math.floor(Date.now() / 1000);
+        const elapsed = Math.max(0, now - acctData.lastUpdated);
+        // reward = (amount * elapsed_days) / 2
+        // elapsed_days = elapsed / 86400
+        // reward = (amount * elapsed) / (86400 * 2) = amount * elapsed / 172800
+        const pendingReward = Math.floor((acctData.amount * elapsed) / 172800);
+        const totalReward = acctData.accumulatedReward + pendingReward;
+        
+        const rewardSol = totalReward / LAMPORTS_PER_SOL;
+        document.getElementById('liveRewardStat').textContent = rewardSol.toFixed(8);
+
+        if (document.getElementById('unstakeContent').classList.contains('hidden') === false) {
+          updateUnstakePayout();
+        }
+      }, 1000);
+    }
+
+    function updateUnstakePayout() {
+      if (!acctData) return;
+      const now = Math.floor(Date.now() / 1000);
+      const elapsed = Math.max(0, now - acctData.lastUpdated);
+      const pendingReward = Math.floor((acctData.amount * elapsed) / 172800);
+      const totalReward = acctData.accumulatedReward + pendingReward;
+
+      const stakedSol = acctData.amount / LAMPORTS_PER_SOL;
+      const rewardSol = totalReward / LAMPORTS_PER_SOL;
+      const totalPayout = stakedSol + rewardSol;
+
+      document.getElementById('unstakeRewardDisplay').textContent = rewardSol.toFixed(6);
+      document.getElementById('unstakeTotalDisplay').textContent = totalPayout.toFixed(6);
+      document.getElementById('unstakeBtn').disabled = dsolBalance <= 0 || acctData.amount <= 0;
+    }
+
+    // ===== TRANSACTION CORE IMPLEMENTATION =====
+    async function sendIx(keys, data) {
+      const ixData = data instanceof Uint8Array ? data : new Uint8Array(data);
+      const ix = new solanaWeb3.TransactionInstruction({
+        programId: new solanaWeb3.PublicKey(PROGRAM_ID),
+        keys,
+        data: ixData,
+      });
+      const tx = new solanaWeb3.Transaction().add(ix);
+      tx.feePayer = wallet.publicKey;
+      tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+      const signed = await wallet.signTransaction(tx);
+      const sig = await conn.sendRawTransaction(signed.serialize());
+      await conn.confirmTransaction(sig, 'confirmed');
+      return sig;
+    }
+
+    function u64LE(n) {
+      const buf = new Uint8Array(8); let r = n;
+      for (let i=0; i<8; i++) { buf[i] = r & 0xff; r = Math.floor(r/256); }
+      return buf;
+    }
+
+    // ===== INSTRUCTION INTERACTION =====
+    async function doInit() {
+      setBtn('stakeBtn', true, 'INITIALIZING...');
+      try {
+        const sig = await sendIx([
+          { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+          { pubkey: pdaAddr, isSigner: false, isWritable: true },
+          { pubkey: new solanaWeb3.PublicKey(SYSTEM_PROGRAM), isSigner: false, isWritable: false },
+        ], DISC.initialize);
+        addLog('ok', 'Staking account initialized', sig);
+        showToast('Staking account initialized!');
+        await refreshAll();
+      } catch(e) {
+        addLog('err', `Initialization error: ${e.message}`);
+        showToast(e.message, true);
+        throw e;
+      } finally {
+        setBtn('stakeBtn', false, 'STAKE SOL');
+      }
+    }
+
+    async function doStake() {
+      if (!wallet) return;
+      const solAmt = parseFloat(document.getElementById('stakeInput').value);
+      if (!solAmt || solAmt <= 0) { showToast('Please enter a valid amount', true); return; }
+      
+      const lamports = Math.floor(solAmt * LAMPORTS_PER_SOL);
+      const info = await conn.getAccountInfo(pdaAddr);
+      if (!info) {
+        addLog('sys', 'Staking state PDA not found. Creating first...');
+        try {
+          await doInit();
+        } catch (err) {
+          return;
+        }
+      }
+
+      setBtn('stakeBtn', true, 'STAKING...');
+      try {
+        const data = new Uint8Array([...DISC.stake, ...u64LE(lamports)]);
+        const keys = [
+          { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+          { pubkey: pdaAddr, isSigner: false, isWritable: true },
+          { pubkey: vaultAddr, isSigner: false, isWritable: true },
+          { pubkey: mintAddr, isSigner: false, isWritable: true },
+          { pubkey: userTokenAddr, isSigner: false, isWritable: true },
+          { pubkey: new solanaWeb3.PublicKey(TOKEN_PROGRAM_ID), isSigner: false, isWritable: false },
+          { pubkey: new solanaWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID), isSigner: false, isWritable: false },
+          { pubkey: new solanaWeb3.PublicKey(SYSTEM_PROGRAM), isSigner: false, isWritable: false },
+          { pubkey: new solanaWeb3.PublicKey(RENT_SYSVAR), isSigner: false, isWritable: false },
+        ];
+
+        const sig = await sendIx(keys, data);
+        addLog('stake', `Staked ${solAmt} SOL. Minted DSOL tokens.`, sig);
+        showToast(`Staked ${solAmt} SOL successfully!`);
+        document.getElementById('stakeInput').value = '';
+        updateStakePreview();
+        await refreshAll();
+      } catch(e) {
+        addLog('err', `Staking transaction failed: ${e.message}`);
+        showToast(e.message, true);
+      } finally {
+        setBtn('stakeBtn', false, 'STAKE SOL');
+      }
+    }
+
+    async function doUnstake() {
+      if (!wallet || !acctData || acctData.amount <= 0) return;
+      setBtn('unstakeBtn', true, 'UNSTAKING...');
+      try {
+        const keys = [
+          { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+          { pubkey: pdaAddr, isSigner: false, isWritable: true },
+          { pubkey: vaultAddr, isSigner: false, isWritable: true },
+          { pubkey: mintAddr, isSigner: false, isWritable: true },
+          { pubkey: userTokenAddr, isSigner: false, isWritable: true },
+          { pubkey: new solanaWeb3.PublicKey(TOKEN_PROGRAM_ID), isSigner: false, isWritable: false },
+          { pubkey: new solanaWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID), isSigner: false, isWritable: false },
+          { pubkey: new solanaWeb3.PublicKey(SYSTEM_PROGRAM), isSigner: false, isWritable: false },
+        ];
+
+        const sig = await sendIx(keys, DISC.unstake);
+        const payoutSol = (acctData.amount / LAMPORTS_PER_SOL).toFixed(4);
+        addLog('unstake', `Burned DSOL. Received principal + rewards payout.`, sig);
+        showToast(`Unstaked! SOL returned to wallet.`);
+        await refreshAll();
+      } catch(e) {
+        addLog('err', `Unstaking failed: ${e.message}`);
+        showToast(e.message, true);
+      } finally {
+        setBtn('unstakeBtn', false, 'UNSTAKE & BURN DSOL');
+      }
+    }
+
+    async function doInitMint() {
+      if (!wallet) return;
+      setBtn('initMintBtn', true, 'INITIALIZING...');
+      try {
+        const metadataAddr = solanaWeb3.PublicKey.findProgramAddressSync(
+          [
+            new TextEncoder().encode('metadata'),
+            new solanaWeb3.PublicKey(METAPLEX_METADATA_PROGRAM_ID).toBuffer(),
+            mintAddr.toBuffer(),
+          ],
+          new solanaWeb3.PublicKey(METAPLEX_METADATA_PROGRAM_ID)
+        )[0];
+
+        const keys = [
+          { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+          { pubkey: mintAddr, isSigner: false, isWritable: true },
+          { pubkey: vaultAddr, isSigner: false, isWritable: false },
+          { pubkey: metadataAddr, isSigner: false, isWritable: true },
+          { pubkey: new solanaWeb3.PublicKey(METAPLEX_METADATA_PROGRAM_ID), isSigner: false, isWritable: false },
+          { pubkey: new solanaWeb3.PublicKey(TOKEN_PROGRAM_ID), isSigner: false, isWritable: false },
+          { pubkey: new solanaWeb3.PublicKey(SYSTEM_PROGRAM), isSigner: false, isWritable: false },
+          { pubkey: new solanaWeb3.PublicKey(RENT_SYSVAR), isSigner: false, isWritable: false },
+        ];
+
+        const sig = await sendIx(keys, DISC.initMint);
+        addLog('ok', 'Protocol DSOL Mint initialized successfully!', sig);
+        showToast('Mint and Metadata initialized!');
+        await refreshAll();
+      } catch (e) {
+        addLog('err', `Init Mint failed: ${e.message}`);
+        showToast(e.message, true);
+        setBtn('initMintBtn', false, 'Initialize DSOL Mint (Admin)');
+      }
+    }
+
+    async function doInitVault() {
+      if (!wallet) return;
+      setBtn('initVaultBtn', true, 'INITIALIZING...');
+      try {
+        const keys = [
+          { pubkey: wallet.publicKey, isSigner: true, isWritable: true },
+          { pubkey: vaultAddr, isSigner: false, isWritable: true },
+          { pubkey: new solanaWeb3.PublicKey(SYSTEM_PROGRAM), isSigner: false, isWritable: false },
+        ];
+
+        const sig = await sendIx(keys, DISC.initVault);
+        addLog('ok', 'Protocol Vault initialized successfully!', sig);
+        showToast('Vault initialized!');
+        await refreshAll();
+      } catch (e) {
+        addLog('err', `Init Vault failed: ${e.message}`);
+        showToast(e.message, true);
+        setBtn('initVaultBtn', false, 'Initialize Vault (Admin)');
+      }
+    }
+
+    // ===== UI TABS & CONTROLS =====
+    function switchTab(t) {
+      const stakeBtnTab = document.getElementById('tabStake');
+      const unstakeBtnTab = document.getElementById('tabUnstake');
+      
+      if (t === 'stake') {
+        stakeBtnTab.className = "flex-1 py-4 font-bold uppercase tracking-wider border-b-2 border-brand-cyan text-brand-cyan bg-brand-cyan/5 transition-all outline-none";
+        unstakeBtnTab.className = "flex-1 py-4 font-bold uppercase tracking-wider border-b-2 border-transparent text-[#94a3b8] hover:text-[#e2e8f0] transition-all outline-none";
+        document.getElementById('stakeContent').classList.remove('hidden');
+        document.getElementById('unstakeContent').classList.add('hidden');
+      } else {
+        unstakeBtnTab.className = "flex-1 py-4 font-bold uppercase tracking-wider border-b-2 border-brand-cyan text-brand-cyan bg-brand-cyan/5 transition-all outline-none";
+        stakeBtnTab.className = "flex-1 py-4 font-bold uppercase tracking-wider border-b-2 border-transparent text-[#94a3b8] hover:text-[#e2e8f0] transition-all outline-none";
+        document.getElementById('unstakeContent').classList.remove('hidden');
+        document.getElementById('stakeContent').classList.add('hidden');
+        updateUnstakePayout();
+      }
+    }
+
+    function updateStakePreview() {
+      const v = parseFloat(document.getElementById('stakeInput').value) || 0;
+      document.getElementById('previewDsol').textContent = v.toFixed(4);
+      
+      const stakeBtn = document.getElementById('stakeBtn');
+      const protocolWarning = document.getElementById('protocolWarning');
+      const isProtocolReady = protocolWarning ? protocolWarning.classList.contains('hidden') : true;
+
+      if (isProtocolReady) {
+        stakeBtn.disabled = v <= 0 || !wallet;
+        stakeBtn.textContent = 'STAKE SOL';
+      } else {
+        stakeBtn.disabled = true;
+        stakeBtn.textContent = 'PROTOCOL NOT INITIALIZED';
+      }
+    }
+
+    function setStakeMax() {
+      if (!wallet) return;
+      document.getElementById('stakeInput').value = Math.max(0, solBalance - 0.05).toFixed(4);
+      updateStakePreview();
+    }
+
+    function setBtn(id, loading, text) {
+      const b = document.getElementById(id);
+      b.disabled = loading;
+      b.textContent = text;
+    }
+
+    function resetUI() {
+      document.getElementById('solBalanceStat').innerHTML = '0.0000 <span class="text-sm font-medium text-[#64748b]">SOL</span>';
+      document.getElementById('stakedAmountStat').innerHTML = '0.0000 <span class="text-sm font-medium text-[#64748b]">SOL</span>';
+      document.getElementById('liveRewardStat').textContent = '0.00000000';
+      document.getElementById('dsolBalanceStat').innerHTML = '0.0000 <span class="text-sm font-medium text-[#64748b]">DSOL</span>';
+      document.getElementById('unstakeBalanceText').textContent = '0.0000';
+      
+      document.getElementById('solBalanceLabel').textContent = '—';
+      document.getElementById('infoPdaAddress').textContent = '—';
+      document.getElementById('unstakePrincipalDisplay').textContent = '0.0000';
+      document.getElementById('unstakeRewardDisplay').textContent = '0.0000';
+      document.getElementById('unstakeTotalDisplay').textContent = '0.0000';
+
+      document.getElementById('stakeBtn').disabled = true;
+      document.getElementById('unstakeBtn').disabled = true;
+    }
+
+    function addLog(type, msg, sig) {
+      const log = document.getElementById('txLog');
+      const time = new Date().toTimeString().slice(0,5);
+      const colors = {
+        stake: 'text-brand-purple font-semibold',
+        unstake: 'text-red-400 font-semibold',
+        sys: 'text-[#64748b]',
+        ok: 'text-brand-green font-semibold',
+        err: 'text-red-500 font-bold'
+      };
+      
+      const link = sig ? `<a href="${explorerUrl(sig)}" target="_blank" class="text-brand-cyan/80 hover:text-brand-cyan hover:underline transition-all pr-2">${sig.slice(0,6)}...${sig.slice(-4)}</a>` : '';
+      
+      const el = document.createElement('div');
+      el.className = 'flex items-center gap-4 px-6 py-3';
+      el.innerHTML = `
+        <span class="text-[#64748b]">${time}</span>
+        <span class="uppercase tracking-wider min-w-[70px] ${colors[type] || 'text-[#cbd5e1]'}">${type}</span>
+        <span class="flex-1 text-[#cbd5e1]">${msg}</span>
+        ${link}
+      `;
+      log.insertBefore(el, log.firstChild);
+    }
+
+    function showToast(msg, err) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.className = `fixed bottom-8 right-8 font-mono text-xs px-6 py-4 rounded-xl border shadow-2xl translate-y-[150%] transition-transform duration-300 max-w-[400px] z-50 ${
+        err ? 'border-red-500 bg-red-950/90 text-red-200' : 'border-brand-cyan bg-dark-surface/90 text-[#e2e8f0]'
+      }`;
+      t.classList.remove('translate-y-[150%]');
+      setTimeout(() => t.classList.add('translate-y-[150%]'), 4000);
+    }
+
+    // ===== RUN BOOTSTRAP =====
+    window.addEventListener('load', async () => {
+      init();
+      const prov = window?.phantom?.solana || window?.solana || window?.solflare;
+      if (prov) {
+        try {
+          await prov.connect({ onlyIfTrusted: true });
+          wallet = prov;
+          const pk = wallet.publicKey.toBase58();
+          const btn = document.getElementById('connectBtn');
+          if (btn) btn.textContent = pk.slice(0,4) + '...' + pk.slice(-4);
+          document.getElementById('statusDot').className = 'w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.7)]';
+          document.getElementById('statusText').textContent = `Connected: ${pk.slice(0,8)}...`;
+          derivePDA();
+          await refreshAll();
+          startRewardsTicker();
+          addLog('ok', `Auto-connected wallet: ${pk}`);
+        } catch (e) {
+          console.log("Auto-connect skipped:", e.message);
+        }
+      }
+    });
+    setInterval(() => { if (wallet) refreshAll(); }, 10000);
+  </script>
+</body>
+</html>
